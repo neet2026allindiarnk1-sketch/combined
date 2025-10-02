@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "✅ Both workers running in background"
+    return "✅ All three workers running in background"
 
 # ==== Common User ID ====
 USER_ID = 5531217637
@@ -49,6 +49,27 @@ headers2 = {
     'Cookie': 'video_ad_watched=2025-09-28',
     'Origin': 'https://shibaadearner.top',
     'Referer': 'https://shibaadearner.top/scratch/',
+    'Sec-Ch-Ua': '"Microsoft Edge";v="140", "Chromium";v="140", "Microsoft Edge WebView2";v="140", "Not=A?Brand";v="24"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"Windows"',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-origin',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0'
+}
+
+# ==== Worker 3 Config (Auth-Gateway - 20 requests/hour) ====
+URL3 = "https://auth-gateway-helper.org/sc/scratch/api/watch-ad.json"
+REQUESTS_PER_HOUR_3 = 20
+DELAY_BETWEEN_REQUESTS_3 = 180  # 3 minutes between requests for 20 per hour
+
+headers3 = {
+    'Accept': '*/*',
+    'Accept-Encoding': 'gzip, deflate, br, zstd',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Content-Type': 'application/json',
+    'Origin': 'https://auth-gateway-helper.org',
+    'Referer': 'https://auth-gateway-helper.org/sc/scratch/index-2.html',
     'Sec-Ch-Ua': '"Microsoft Edge";v="140", "Chromium";v="140", "Microsoft Edge WebView2";v="140", "Not=A?Brand";v="24"',
     'Sec-Ch-Ua-Mobile': '?0',
     'Sec-Ch-Ua-Platform': '"Windows"',
@@ -134,6 +155,48 @@ def worker2_loop():
             print(f"[Worker2-Shibaadearner] Waiting {int(remaining_time)} seconds ({remaining_time/60:.1f} minutes) until next hour...")
             time.sleep(remaining_time)
 
+# ==== Worker 3 Functions (Auth-Gateway) ====
+def send_request_worker3():
+    try:
+        payload = {
+            "user_id": USER_ID,
+            "ad_provider": "monetag",
+            "ad_blocked": False,
+            "shown": False
+        }
+        response = requests.post(URL3, headers=headers3, json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"[Worker3-AuthGateway] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✅ Success!")
+            print(f"  Status: {data.get('status')}")
+            print(f"  Earned: {data.get('earned')}")
+            print(f"  New Balance: {data.get('new_balance')}")
+            print("-" * 50)
+        else:
+            print(f"[Worker3-AuthGateway] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ❌ Error: Status Code {response.status_code}")
+    except Exception as e:
+        print(f"[Worker3-AuthGateway] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Request failed: {e}")
+
+def worker3_loop():
+    print("[Worker3-AuthGateway] Background worker started. Script will run continuously.")
+    while True:
+        start_time = time.time()
+        print(f"\n[Worker3-AuthGateway] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting new hour cycle...")
+
+        for i in range(REQUESTS_PER_HOUR_3):
+            print(f"\n[Worker3-AuthGateway] Sending request {i+1}/{REQUESTS_PER_HOUR_3}")
+            send_request_worker3()
+            if i < REQUESTS_PER_HOUR_3 - 1:
+                print(f"[Worker3-AuthGateway] Waiting {DELAY_BETWEEN_REQUESTS_3} seconds before next request...")
+                time.sleep(DELAY_BETWEEN_REQUESTS_3)
+
+        time_spent = time.time() - start_time
+        remaining_time = 3600 - time_spent
+        if remaining_time > 0:
+            print(f"\n[Worker3-AuthGateway] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Completed {REQUESTS_PER_HOUR_3} requests.")
+            print(f"[Worker3-AuthGateway] Waiting {int(remaining_time)} seconds ({remaining_time/60:.1f} minutes) until next hour...")
+            time.sleep(remaining_time)
+
 # ==== Entry point ====
 if __name__ == "__main__":
     # Start Worker 1 thread (Scointasks - 10 requests/hour)
@@ -146,9 +209,15 @@ if __name__ == "__main__":
     t2.daemon = True
     t2.start()
     
-    print("Both workers started successfully!")
+    # Start Worker 3 thread (Auth-Gateway - 20 requests/hour)
+    t3 = threading.Thread(target=worker3_loop)
+    t3.daemon = True
+    t3.start()
+    
+    print("All three workers started successfully!")
     print("Worker1 (Scointasks): 10 requests per hour")
     print("Worker2 (Shibaadearner): 15 requests per hour")
+    print("Worker3 (Auth-Gateway): 20 requests per hour")
     
     # Flask server to keep Render happy
     app.run(host="0.0.0.0", port=10000)
